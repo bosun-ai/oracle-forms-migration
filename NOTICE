@@ -1,0 +1,11 @@
+Oracle Forms ORDERS migration: migrated application and Parity proofs
+Copyright 2026 Bosun
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It does not include Oracle Forms, Oracle Database, the Oracle JDK or Oracle's Summit sample application (form
+source, schema scripts or data). These are Oracle's, are not licensed here, and must be obtained from Oracle under
+Oracle's terms. Names of Oracle products are used only to identify the legacy system.
+
+The migrated application depends on third-party Rust crates (axum, tokio, tokio-postgres, serde, serde_json and
+their dependencies, pinned in target/Cargo.lock). They are not included here and are under their own licenses.

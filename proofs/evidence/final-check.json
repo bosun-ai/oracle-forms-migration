@@ -1,0 +1,117 @@
+{
+  "status": "passed",
+  "reason": "all checks passed",
+  "checks": {
+    "build": {
+      "check": "build",
+      "command": [
+        "sh",
+        "-c",
+        "true"
+      ],
+      "returncode": 0,
+      "timeout": false
+    },
+    "target_tests": {
+      "check": "target_tests",
+      "command": [
+        "sh",
+        "-c",
+        "cargo test --locked --offline"
+      ],
+      "returncode": 0,
+      "timeout": false
+    },
+    "parity_version": {
+      "check": "parity_version",
+      "command": [
+        "parity",
+        "--version"
+      ],
+      "returncode": 0,
+      "timeout": false
+    },
+    "parity_plan": {
+      "check": "parity_plan",
+      "command": [
+        "parity",
+        "verify",
+        "--plan",
+        "--json"
+      ],
+      "returncode": 0,
+      "timeout": false
+    },
+    "parity_verify": {
+      "check": "parity_verify",
+      "command": [
+        "parity",
+        "verify",
+        "--no-cache",
+        "--jobs",
+        "1",
+        "--json",
+        "--deadline",
+        "30m",
+        "--report",
+        "/workspace/evidence/logs/finalize/parity-report.json"
+      ],
+      "returncode": 0,
+      "timeout": false
+    },
+    "parity_replay": {
+      "check": "parity_replay",
+      "command": [
+        "parity",
+        "verify",
+        "--offline",
+        "/workspace/evidence/logs/finalize/parity-report.json"
+      ],
+      "returncode": 0,
+      "timeout": false
+    }
+  },
+  "parity_status": "pass",
+  "step_errors": [],
+  "build_passed": true,
+  "heuristics": {
+    "framework_dependency": {
+      "named": [],
+      "present": [],
+      "manifests": [
+        "Cargo.toml"
+      ],
+      "ok": null
+    },
+    "raw_server_hits": 1,
+    "raw_server_examples": [
+      "src/main.rs:126"
+    ],
+    "loc_by_extension": {
+      ".toml": {
+        "files": 2,
+        "loc": 20
+      },
+      ".lock": {
+        "files": 1,
+        "loc": 940
+      },
+      ".sql": {
+        "files": 1,
+        "loc": 78
+      },
+      ".gitignore": {
+        "files": 1,
+        "loc": 1
+      },
+      ".html": {
+        "files": 1,
+        "loc": 216
+      },
+      ".rs": {
+        "files": 2,
+        "loc": 1719
+      }
+    }
+  }
+}

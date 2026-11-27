@@ -1,0 +1,56 @@
+parity 1
+specs "specs/*.md"
+
+view changes = command ["sh", "${project}/bin/changes.sh", "${subject}"] { within 60s }
+
+legacy {
+  sources ["legacy-src/", "bin/", "driver/"]
+  reset ["sh", "${project}/bin/reset.sh", "legacy"] within 60s
+  driver ["sh", "bin/driver.sh", "legacy"] { within 300s }
+}
+
+target {
+  reset ["sh", "/u01/target/bin/reset.sh", "target"] within 60s
+  serve ["/workspace/dst/target/release/summit-orders"] at "http://127.0.0.1:${port.http}" {
+    env PORT = "${port.http}"
+    env DATABASE_URL = env("DATABASE_URL")
+    ready "/health" within 60s
+  }
+  driver ["sh", "bin/web-driver.sh", "target"] { within 300s }
+}
+
+// bosun-audit-policy:begin. Written by the workflow and restored before every verify; edit only outside these markers.
+audit required {
+  settle quiet 100ms
+  exclude audit.surface == "filesystem_read" && (audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/"))
+because "language runtimes read kernel state at start-up (heap sizing, CPU and cgroup limits); the program's own inputs and outputs stay compared"
+  exclude audit.surface == "filesystem_read" && audit.resource in ["/etc/localtime", "/etc/nsswitch.conf", "/etc/ld.so.cache", "/etc/gai.conf", "/etc/host.conf"]
+because "runtime start-up configuration reads differ between language runtimes"
+  exclude audit.surface == "filesystem_read" && (audit.resource in ["/etc/passwd", "/etc/group", "/etc/mime.types"] || audit.resource.startsWith("/usr/local/go/") || audit.resource.startsWith("/go/pkg/mod/golang.org/toolchain") || audit.resource.startsWith("/usr/share/zoneinfo/"))
+because "standard libraries read the user database, MIME table, time zone data and toolchain files on their own; the program's own inputs and outputs stay compared"
+  exclude views.process where view.resource == "subject" && has(view.request.operation) && view.request.operation == "signal" && has(view.request.signal) && view.request.signal == 23
+because "SIGURG is the Go scheduler preempting its own threads; its count varies per run. Exit status, streams and other signals stay compared"
+  exclude views.filesystem where view.phase == "when" && has(view.request.operation) && view.request.operation == "mkdir"
+because "concurrent code races to create the same directory, so mkdir attempts vary per run; the settled directory tree and every file in it stay compared"
+  exclude views.process_io where view.request.participants.all(participant, participant.actor == "subject" || participant.parent == "subject")
+because "pipe chunking and non-blocking reads between the program and its own child processes are runtime I/O scheduling; the child's command line and the program's stdout, stderr and files stay compared"
+  exclude views.http1 where view.resource == "127.0.0.1:7001"
+because "Oracle Forms: client-server messages carry per-session identifiers; what the form shows is compared through the driver and the committed rows through the changes view"
+  exclude views.local_ipc where view.resource == "unix+stream://@/tmp/.X11-unix/X99"
+because "Oracle Forms: X11 drawing on the virtual display varies by window ids and repaints"
+  exclude audit.surface == "filesystem_read" && (audit.resource.startsWith("/usr/") || audit.resource.startsWith("/etc/") || audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/") || audit.resource.startsWith("/opt/") || audit.resource.startsWith("/u01/") || audit.resource.startsWith("/root/") || audit.resource.startsWith("/lib"))
+because "Oracle Forms: runtimes, libraries, fonts and configuration of the Forms client, the browser driver and the port"
+  exclude views.local_ipc where view.resource.endsWith("/tmp/forms-screen.sock")
+because "Oracle Forms: the Forms driver's screen probe for dialogs and windows"
+  exclude views.process
+because "Oracle Forms: the UI instruments (Forms client, browser driver) start different programs by design"
+  exclude views.process_io
+because "Oracle Forms: pipes between the UI instruments and their helpers differ by design"
+  exclude views.http1 where view.resource == "127.0.0.1:9333"
+because "Oracle Forms: the browser driver's connection to the browser server"
+  exclude target views.postgres
+because "Oracle Forms: the engines differ; committed rows are compared through the changes view"
+  forbid target views.process where view.resource.startsWith("/workspace/src/") || view.process.startsWith("/workspace/src/")
+because "the target must never execute the source implementation"
+}
+// bosun-audit-policy:end

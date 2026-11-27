@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Summit Orders</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #172b3d; background: #edf2f5; }
+    body { margin: 0; }
+    main { max-width: 1180px; margin: 28px auto; padding: 24px; background: white; border-radius: 8px; box-shadow: 0 3px 18px #172b3d18; }
+    h1 { font-size: 24px; margin: 0 0 20px; }
+    h2 { font-size: 18px; margin-top: 24px; }
+    .toolbar, .commands { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
+    .header { display: grid; grid-template-columns: repeat(4, minmax(130px,1fr)); gap: 14px; }
+    label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+    .check { flex-direction: row; align-items: center; }
+    input, select, button { font: inherit; border: 1px solid #a7b6c1; border-radius: 4px; padding: 7px; min-width: 0; }
+    input[readonly] { background: #f4f7f9; }
+    input:focus, select:focus, button:focus { outline: 2px solid #1878bb; outline-offset: 1px; }
+    button { cursor: pointer; background: #f0f5f8; }
+    button[data-testid="save"] { background: #146aa2; color: white; }
+    .lines { overflow-x: auto; }
+    [data-testid="line"] { display: grid; grid-template-columns: 50px 90px 150px minmax(155px,1fr) 80px 65px 65px 90px 66px 82px; gap: 6px; margin-bottom: 7px; }
+    [data-testid="line"] input, [data-testid="line"] select { width: 100%; box-sizing: border-box; }
+    [data-testid="description"] { padding: 7px; background: #f4f7f9; font-size: 13px; }
+    .line-labels { display: grid; grid-template-columns: 50px 90px 150px minmax(155px,1fr) 80px 65px 65px 90px 66px 82px; gap: 6px; font-size: 12px; margin-bottom: 8px; }
+    .summary { display: flex; justify-content: flex-end; margin: 18px 0; gap: 12px; align-items: center; }
+    .status { border-top: 1px solid #dbe3e9; padding-top: 12px; min-height: 24px; }
+    [data-testid="message"] { color: #923522; }
+    [data-testid="mode"] { font-size: 12px; margin-right: 12px; }
+    [data-testid="alert"] { position: fixed; inset: 0; background: #172b3d66; display: flex; align-items: center; justify-content: center; z-index: 10; }
+    [data-testid="alert"] { pointer-events: none; }
+    [data-testid="alert-button"] { pointer-events: auto; }
+    .dialog { background: white; border-radius: 6px; padding: 24px; min-width: 320px; box-shadow: 0 5px 30px #0005; }
+    .dialog h2 { margin-top: 0; }
+    .dialog-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+    [hidden] { display: none !important; }
+    @media(max-width:800px) { main { margin: 12px; padding: 16px; } .header { grid-template-columns: repeat(2,1fr); } [data-testid="line"], .line-labels { min-width: 950px; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Summit Order Entry</h1>
+  <div id="application">
+    <div class="toolbar">
+      <label class="check"><input type="checkbox" data-testid="immediate">Immediate</label>
+      <label class="check"><input type="checkbox" data-testid="auto-query">Auto Query</label>
+      <label>Sort By <select data-testid="sort-by"><option value="id">Order ID</option><option value="customer_id">Customer ID</option><option value="sales_rep_id">Sales Rep ID</option></select></label>
+      <button data-testid="enter-query">Enter Query</button><button data-testid="execute-query">Execute Query</button>
+      <button data-testid="previous-order">Previous</button><button data-testid="next-order">Next</button>
+    </div>
+    <section class="header" aria-label="Order Header">
+      <label>Order ID<input data-testid="order-id" inputmode="numeric"></label>
+      <label>Customer ID<input data-testid="customer-id" inputmode="numeric" required></label>
+      <label>Customer Name<input data-testid="customer-name" readonly></label>
+      <label>Sales Rep ID<input data-testid="rep-id" inputmode="numeric"></label>
+      <label>Sales Rep Name<input data-testid="rep-name" readonly></label>
+      <label>Date Ordered<input data-testid="date-ordered" type="date"></label>
+      <label>Date Shipped<input data-testid="date-shipped" type="date"></label>
+      <label>Payment Type<select data-testid="payment-type"><option value=""></option><option value="CASH">CASH</option><option value="CREDIT">CREDIT</option></select></label>
+      <label class="check"><input data-testid="order-filled" type="checkbox">Order Filled</label>
+    </section>
+    <h2>Order Lines</h2>
+    <section class="lines" aria-label="Order Lines">
+      <div class="line-labels"><span>Item</span><span>Product ID</span><span>Product Picker</span><span>Description</span><span>Price</span><span>Quantity</span><span>Shipped</span><span>Item Total</span></div>
+      <div id="rows"></div>
+    </section>
+    <button data-testid="add-line">Add Line</button>
+    <div class="summary"><label>Order Total<input data-testid="order-total" readonly></label></div>
+    <div class="commands">
+      <button data-testid="new-order">New Order</button><button data-testid="duplicate-order">Duplicate Order</button>
+      <button data-testid="save">Save</button><button data-testid="delete-order">Delete Order</button>
+      <button data-testid="clear">Clear</button><button data-testid="cancel">Cancel</button><button data-testid="exit">Exit</button>
+    </div>
+  </div>
+  <div data-testid="closed" hidden>The order form is closed.</div>
+  <div class="status" role="status"><span data-testid="mode">normal</span><span data-testid="message"></span></div>
+</main>
+<div data-testid="alert" role="alertdialog" aria-modal="true" hidden>
+  <div class="dialog"><h2 data-testid="alert-title"></h2><div data-testid="alert-text"></div><div class="dialog-buttons" id="choices"></div></div>
+</div>
+<script>
+  'use strict';
+  const by = id => document.querySelector(`[data-testid="${id}"]`);
+  const header = ['order-id','customer-id','customer-name','rep-id','rep-name','date-ordered','date-shipped','payment-type','order-filled'];
+  const lineFields = ['item-id','product-id','description','price','quantity','shipped','item-total'];
+  let session, state, rendering = false, queue = Promise.resolve();
+  const rowNumber = element => {
+    const row = element.closest('[data-testid="line"]');
+    return row ? [...document.querySelectorAll('[data-testid="line"]')].indexOf(row) + 1 : undefined;
+  };
+
+  function makeRow(products) {
+    const row = document.createElement('div'); row.dataset.testid = 'line';
+    for (const id of ['item-id','product-id','product-picker','description','price','quantity','shipped','item-total','delete-line','duplicate-line']) {
+      let element;
+      if (id === 'product-picker') {
+        element = document.createElement('select');
+        element.add(new Option('Select Product',''));
+        for (const product of products) element.add(new Option(`${product.id} — ${product.name}`, String(product.id)));
+      } else if (id.endsWith('-line')) {
+        element = document.createElement('button'); element.textContent = id === 'delete-line' ? 'Delete' : 'Duplicate';
+      } else if (id === 'description') {
+        element = document.createElement('span');
+      } else {
+        element = document.createElement('input');
+        element.readOnly = ['description','item-total'].includes(id);
+        if (!element.readOnly) element.inputMode = id === 'price' ? 'decimal' : 'numeric';
+        if (!element.readOnly) element.maxLength = ['item-id','product-id'].includes(id) ? 8 : id === 'price' ? 13 : 10;
+      }
+      element.dataset.testid = id; element.setAttribute('aria-label', id.replaceAll('-',' ')); row.append(element);
+    }
+    return row;
+  }
+
+  function render(screen) {
+    state = screen; rendering = true;
+    for (const id of header) {
+      const element = by(id), value = screen.order[id] ?? '';
+      if (element.type === 'checkbox') { element.checked = value === 'Y'; element.indeterminate = value === ''; }
+      else element.value = value;
+      element.disabled = screen.disabled.includes(id);
+      element.required = screen.required.includes(id);
+    }
+    for (const id of ['immediate','auto-query']) {
+      by(id).checked = screen.options[id]; by(id).disabled = screen.disabled.includes(id);
+    }
+    by('sort-by').value = screen.sort;
+    const rows = document.getElementById('rows');
+    while (rows.children.length < screen.lines.length) rows.append(makeRow(screen.products));
+    while (rows.children.length > screen.lines.length) rows.lastElementChild.remove();
+    screen.lines.forEach((fields, index) => {
+      const row = rows.children[index];
+      for (const id of lineFields) {
+        const element = row.querySelector(`[data-testid="${id}"]`);
+        if (id === 'description') element.textContent = fields[id] ?? '';
+        else element.value = fields[id] ?? '';
+      }
+      row.querySelector('[data-testid="product-picker"]').value = fields['product-id'] ?? '';
+    });
+    by('order-total').value = screen.total ?? '';
+    by('mode').textContent = screen.mode;
+    by('closed').hidden = !screen.closed;
+    document.getElementById('application').hidden = screen.closed;
+    const alert = by('alert'); alert.hidden = !screen.alert;
+    if (screen.alert) {
+      by('alert-title').textContent = screen.alert.title;
+      by('alert-text').textContent = screen.alert.text;
+      const choices = document.getElementById('choices'); choices.replaceChildren();
+      for (const label of screen.alert.buttons) {
+        const button = document.createElement('button'); button.dataset.testid = 'alert-button'; button.textContent = label;
+        button.addEventListener('click', () => send({action:'answer',value:label})); choices.append(button);
+      }
+      choices.firstElementChild?.focus();
+    } else if (screen.focus && !screen.closed) {
+      const root = screen.focus.line ? rows.children[screen.focus.line - 1] : document;
+      root?.querySelector(`[data-testid="${screen.focus.item}"]`)?.focus();
+    } else { document.activeElement?.blur(); }
+    by('message').replaceChildren(document.createTextNode(screen.messages[0] ?? ''));
+    rendering = false;
+  }
+
+  function send(command) {
+    // Serialize browser gestures so field leave always sees the preceding input.
+    queue = queue.then(async () => {
+      const response = await fetch(`/api/session/${session}/action`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command)});
+      const screen = await response.json();
+      if (!response.ok) throw new Error(screen.error);
+      render(screen);
+      for (const message of screen.messages.slice(1)) {
+        await new Promise(resolve => setTimeout(resolve, 1)); by('message').replaceChildren(document.createTextNode(message));
+      }
+    }).catch(error => { by('message').textContent = error.message; });
+    return queue;
+  }
+
+  document.addEventListener('focusin', event => {
+    if (rendering || session === undefined || state?.alert) return;
+    const id = event.target.dataset.testid;
+    if ((header.includes(id) && id !== 'payment-type') || lineFields.includes(id)) send({action:'click',item:id,line:rowNumber(event.target)});
+  });
+  document.addEventListener('input', event => {
+    if (rendering || !event.target.matches('input:not([type="checkbox"]):not([readonly])')) return;
+    send({action:'type',item:event.target.dataset.testid,value:event.target.value,line:rowNumber(event.target)});
+  });
+  document.addEventListener('change', event => {
+    if (rendering) return;
+    const id = event.target.dataset.testid;
+    if (id === 'payment-type') send({action:'payment',value:event.target.value});
+    else if (id === 'product-picker') send({action:'pick',value:event.target.value,line:rowNumber(event.target)});
+    else if (id === 'sort-by') send({action:'sort',value:event.target.value});
+  });
+  document.addEventListener('click', event => {
+    const element = event.target.closest('[data-testid]'); if (!element || rendering || session === undefined) return;
+    const id = element.dataset.testid;
+    if (element.type === 'checkbox') {
+      event.preventDefault(); send({action:'toggle',item:id});
+    } else if (element.tagName === 'BUTTON' && id !== 'alert-button') {
+      event.preventDefault(); send({action:id,line:rowNumber(element)});
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Tab' && !state?.alert) { event.preventDefault(); send({action:'next-item'}); }
+  });
+  window.addEventListener('pagehide', () => {
+    if (session !== undefined) navigator.sendBeacon(`/api/session/${session}/close`);
+  });
+  (async () => {
+    try {
+      const response = await fetch('/api/session', {method:'POST'});
+      const screen = await response.json(); if (!response.ok) throw new Error(screen.error);
+      session = screen.session; render(screen);
+      setInterval(() => {
+        fetch(`/api/session/${session}/heartbeat`, {method:'POST'}).catch(() => {});
+      }, 3000);
+    } catch (error) { by('message').textContent = error.message; }
+  })();
+</script>
+</body>
+</html>

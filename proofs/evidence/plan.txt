@@ -1,0 +1,459 @@
+Proof plan (schema 0.3.0)
+Evidence: proofs=6, shapes=6
+Subject identity is self-attested.
+
+orders-end-to-end.explicit-query-edit (specs/orders-end-to-end.md:2)
+  view changes: command sh (+2 args)
+  audit: required (strict=false; quiet 100ms; 4 default exclusions; 14 authored exclusions; 1 forbids; 0 target requirements)
+    default runtime_support_file_reads because runtime support files are outside migrated behavior
+    default temporary_filesystem_activity because temporary filesystem activity is outside migrated behavior
+    default created_state_steps because steps on state the subject created are compared by its settled state
+    default language_runner_mechanics because language runner mechanics are outside migrated behavior
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/")) because language runtimes read kernel state at start-up (heap sizing, CPU and cgroup limits); the program's own inputs and outputs stay compared
+    exclude both where audit.surface == "filesystem_read" && audit.resource in ["/etc/localtime", "/etc/nsswitch.conf", "/etc/ld.so.cache", "/etc/gai.conf", "/etc/host.conf"] because runtime start-up configuration reads differ between language runtimes
+    exclude both where audit.surface == "filesystem_read" && (audit.resource in ["/etc/passwd", "/etc/group", "/etc/mime.types"] || audit.resource.startsWith("/usr/local/go/") || audit.resource.startsWith("/go/pkg/mod/golang.org/toolchain") || audit.resource.startsWith("/usr/share/zoneinfo/")) because standard libraries read the user database, MIME table, time zone data and toolchain files on their own; the program's own inputs and outputs stay compared
+    exclude both views.process where view.resource == "subject" && has(view.request.operation) && view.request.operation == "signal" && has(view.request.signal) && view.request.signal == 23 because SIGURG is the Go scheduler preempting its own threads; its count varies per run. Exit status, streams and other signals stay compared
+    exclude both views.filesystem where view.phase == "when" && has(view.request.operation) && view.request.operation == "mkdir" because concurrent code races to create the same directory, so mkdir attempts vary per run; the settled directory tree and every file in it stay compared
+    exclude both views.process_io where view.request.participants.all(participant, participant.actor == "subject" || participant.parent == "subject") because pipe chunking and non-blocking reads between the program and its own child processes are runtime I/O scheduling; the child's command line and the program's stdout, stderr and files stay compared
+    exclude both views.http1 where view.resource == "127.0.0.1:7001" because Oracle Forms: client-server messages carry per-session identifiers; what the form shows is compared through the driver and the committed rows through the changes view
+    exclude both views.local_ipc where view.resource == "unix+stream://@/tmp/.X11-unix/X99" because Oracle Forms: X11 drawing on the virtual display varies by window ids and repaints
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/usr/") || audit.resource.startsWith("/etc/") || audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/") || audit.resource.startsWith("/opt/") || audit.resource.startsWith("/u01/") || audit.resource.startsWith("/root/") || audit.resource.startsWith("/lib")) because Oracle Forms: runtimes, libraries, fonts and configuration of the Forms client, the browser driver and the port
+    exclude both views.local_ipc where view.resource.endsWith("/tmp/forms-screen.sock") because Oracle Forms: the Forms driver's screen probe for dialogs and windows
+    exclude both views.process because Oracle Forms: the UI instruments (Forms client, browser driver) start different programs by design
+    exclude both views.process_io because Oracle Forms: pipes between the UI instruments and their helpers differ by design
+    exclude both views.http1 where view.resource == "127.0.0.1:9333" because Oracle Forms: the browser driver's connection to the browser server
+    exclude target views.postgres because Oracle Forms: the engines differ; committed rows are compared through the changes view
+    forbid target views.process where view.resource.startsWith("/workspace/src/") || view.process.startsWith("/workspace/src/") because the target must never execute the source implementation
+  legacy: legacy; automatic
+    reset ["sh","${project}/bin/reset.sh","legacy"] (within 60000ms)
+    run entered: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run criteria: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run queried: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run changed: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run left: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run saved: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+  target: target; automatic
+    reset ["sh","/u01/target/bin/reset.sh","target"] (within 60000ms)
+    serve ["/workspace/dst/target/release/summit-orders"] at http://127.0.0.1:${port.http} (ready /health within 60000ms; env DATABASE_URL env("DATABASE_URL"), PORT "${port.http}")
+      cwd .
+    run entered: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run criteria: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run queried: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run changed: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run left: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run saved: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+  example default: {}
+  when entered = enter_query({})
+  when criteria = type({"item":"order-id","value":101})
+  when queried = execute_query({})
+  when changed = type({"item":"customer-id","value":201})
+  when left = click({"item":"date-shipped"})
+  when saved = save({})
+  assert steps.entered.mode == "query"
+  assert steps.queried.order["order-id"] == 101
+  assert steps.changed.order["customer-name"] == "Kam's Sporting Goods"
+  assert steps.left.order["customer-name"] == "Unisports"
+  assert result.order["rep-id"] == 12
+  assert result.messages == ["FRM-40400: Transaction complete: 1 records applied and saved."]
+
+orders-end-to-end.coordination-sort (specs/orders-end-to-end.md:21)
+  view changes: command sh (+2 args)
+  audit: required (strict=false; quiet 100ms; 4 default exclusions; 14 authored exclusions; 1 forbids; 0 target requirements)
+    default runtime_support_file_reads because runtime support files are outside migrated behavior
+    default temporary_filesystem_activity because temporary filesystem activity is outside migrated behavior
+    default created_state_steps because steps on state the subject created are compared by its settled state
+    default language_runner_mechanics because language runner mechanics are outside migrated behavior
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/")) because language runtimes read kernel state at start-up (heap sizing, CPU and cgroup limits); the program's own inputs and outputs stay compared
+    exclude both where audit.surface == "filesystem_read" && audit.resource in ["/etc/localtime", "/etc/nsswitch.conf", "/etc/ld.so.cache", "/etc/gai.conf", "/etc/host.conf"] because runtime start-up configuration reads differ between language runtimes
+    exclude both where audit.surface == "filesystem_read" && (audit.resource in ["/etc/passwd", "/etc/group", "/etc/mime.types"] || audit.resource.startsWith("/usr/local/go/") || audit.resource.startsWith("/go/pkg/mod/golang.org/toolchain") || audit.resource.startsWith("/usr/share/zoneinfo/")) because standard libraries read the user database, MIME table, time zone data and toolchain files on their own; the program's own inputs and outputs stay compared
+    exclude both views.process where view.resource == "subject" && has(view.request.operation) && view.request.operation == "signal" && has(view.request.signal) && view.request.signal == 23 because SIGURG is the Go scheduler preempting its own threads; its count varies per run. Exit status, streams and other signals stay compared
+    exclude both views.filesystem where view.phase == "when" && has(view.request.operation) && view.request.operation == "mkdir" because concurrent code races to create the same directory, so mkdir attempts vary per run; the settled directory tree and every file in it stay compared
+    exclude both views.process_io where view.request.participants.all(participant, participant.actor == "subject" || participant.parent == "subject") because pipe chunking and non-blocking reads between the program and its own child processes are runtime I/O scheduling; the child's command line and the program's stdout, stderr and files stay compared
+    exclude both views.http1 where view.resource == "127.0.0.1:7001" because Oracle Forms: client-server messages carry per-session identifiers; what the form shows is compared through the driver and the committed rows through the changes view
+    exclude both views.local_ipc where view.resource == "unix+stream://@/tmp/.X11-unix/X99" because Oracle Forms: X11 drawing on the virtual display varies by window ids and repaints
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/usr/") || audit.resource.startsWith("/etc/") || audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/") || audit.resource.startsWith("/opt/") || audit.resource.startsWith("/u01/") || audit.resource.startsWith("/root/") || audit.resource.startsWith("/lib")) because Oracle Forms: runtimes, libraries, fonts and configuration of the Forms client, the browser driver and the port
+    exclude both views.local_ipc where view.resource.endsWith("/tmp/forms-screen.sock") because Oracle Forms: the Forms driver's screen probe for dialogs and windows
+    exclude both views.process because Oracle Forms: the UI instruments (Forms client, browser driver) start different programs by design
+    exclude both views.process_io because Oracle Forms: pipes between the UI instruments and their helpers differ by design
+    exclude both views.http1 where view.resource == "127.0.0.1:9333" because Oracle Forms: the browser driver's connection to the browser server
+    exclude target views.postgres because Oracle Forms: the engines differ; committed rows are compared through the changes view
+    forbid target views.process where view.resource.startsWith("/workspace/src/") || view.process.startsWith("/workspace/src/") because the target must never execute the source implementation
+  legacy: legacy; automatic
+    reset ["sh","${project}/bin/reset.sh","legacy"] (within 60000ms)
+    run entered: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run criteria: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run id_sort: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run queried: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run deferred: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run auto_on: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run next: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run detail: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run auto_off: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run immediate: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run customer_sort: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run rep_sort: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run previous: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+  target: target; automatic
+    reset ["sh","/u01/target/bin/reset.sh","target"] (within 60000ms)
+    serve ["/workspace/dst/target/release/summit-orders"] at http://127.0.0.1:${port.http} (ready /health within 60000ms; env DATABASE_URL env("DATABASE_URL"), PORT "${port.http}")
+      cwd .
+    run entered: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run criteria: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run id_sort: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run queried: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run deferred: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run auto_on: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run next: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run detail: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run auto_off: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run immediate: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run customer_sort: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run rep_sort: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run previous: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+  example default: {}
+  when entered = enter_query({})
+  when criteria = type({"item":"order-id","value":102})
+  when id_sort = sort_by({"field":"id"})
+  when queried = execute_query({})
+  when deferred = toggle({"item":"immediate"})
+  when auto_on = toggle({"item":"auto-query"})
+  when next = next_order({})
+  when detail = click({"item":"product-id","line":1})
+  when auto_off = toggle({"item":"auto-query"})
+  when immediate = toggle({"item":"immediate"})
+  when customer_sort = sort_by({"field":"customer_id"})
+  when rep_sort = sort_by({"field":"sales_rep_id"})
+  when previous = previous_order({})
+  assert steps.queried.order["order-id"] == 102
+  assert steps.deferred.options.immediate == false
+  assert steps.auto_on.options["auto-query"] == true
+  assert steps.immediate.disabled == ["auto-query"]
+  assert result.order["order-id"] == 102
+
+orders-end-to-end.header-refusals (specs/orders-end-to-end.md:46)
+  view changes: command sh (+2 args)
+  audit: required (strict=false; quiet 100ms; 4 default exclusions; 14 authored exclusions; 1 forbids; 0 target requirements)
+    default runtime_support_file_reads because runtime support files are outside migrated behavior
+    default temporary_filesystem_activity because temporary filesystem activity is outside migrated behavior
+    default created_state_steps because steps on state the subject created are compared by its settled state
+    default language_runner_mechanics because language runner mechanics are outside migrated behavior
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/")) because language runtimes read kernel state at start-up (heap sizing, CPU and cgroup limits); the program's own inputs and outputs stay compared
+    exclude both where audit.surface == "filesystem_read" && audit.resource in ["/etc/localtime", "/etc/nsswitch.conf", "/etc/ld.so.cache", "/etc/gai.conf", "/etc/host.conf"] because runtime start-up configuration reads differ between language runtimes
+    exclude both where audit.surface == "filesystem_read" && (audit.resource in ["/etc/passwd", "/etc/group", "/etc/mime.types"] || audit.resource.startsWith("/usr/local/go/") || audit.resource.startsWith("/go/pkg/mod/golang.org/toolchain") || audit.resource.startsWith("/usr/share/zoneinfo/")) because standard libraries read the user database, MIME table, time zone data and toolchain files on their own; the program's own inputs and outputs stay compared
+    exclude both views.process where view.resource == "subject" && has(view.request.operation) && view.request.operation == "signal" && has(view.request.signal) && view.request.signal == 23 because SIGURG is the Go scheduler preempting its own threads; its count varies per run. Exit status, streams and other signals stay compared
+    exclude both views.filesystem where view.phase == "when" && has(view.request.operation) && view.request.operation == "mkdir" because concurrent code races to create the same directory, so mkdir attempts vary per run; the settled directory tree and every file in it stay compared
+    exclude both views.process_io where view.request.participants.all(participant, participant.actor == "subject" || participant.parent == "subject") because pipe chunking and non-blocking reads between the program and its own child processes are runtime I/O scheduling; the child's command line and the program's stdout, stderr and files stay compared
+    exclude both views.http1 where view.resource == "127.0.0.1:7001" because Oracle Forms: client-server messages carry per-session identifiers; what the form shows is compared through the driver and the committed rows through the changes view
+    exclude both views.local_ipc where view.resource == "unix+stream://@/tmp/.X11-unix/X99" because Oracle Forms: X11 drawing on the virtual display varies by window ids and repaints
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/usr/") || audit.resource.startsWith("/etc/") || audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/") || audit.resource.startsWith("/opt/") || audit.resource.startsWith("/u01/") || audit.resource.startsWith("/root/") || audit.resource.startsWith("/lib")) because Oracle Forms: runtimes, libraries, fonts and configuration of the Forms client, the browser driver and the port
+    exclude both views.local_ipc where view.resource.endsWith("/tmp/forms-screen.sock") because Oracle Forms: the Forms driver's screen probe for dialogs and windows
+    exclude both views.process because Oracle Forms: the UI instruments (Forms client, browser driver) start different programs by design
+    exclude both views.process_io because Oracle Forms: pipes between the UI instruments and their helpers differ by design
+    exclude both views.http1 where view.resource == "127.0.0.1:9333" because Oracle Forms: the browser driver's connection to the browser server
+    exclude target views.postgres because Oracle Forms: the engines differ; committed rows are compared through the changes view
+    forbid target views.process where view.resource.startsWith("/workspace/src/") || view.process.startsWith("/workspace/src/") because the target must never execute the source implementation
+  legacy: legacy; automatic
+    reset ["sh","${project}/bin/reset.sh","legacy"] (within 60000ms)
+    run entered: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run criteria: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run queried: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run invalid: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run refused: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run tabbed: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run repaired: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run left: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run credit: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run acknowledged: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run bad_date: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run date_refused: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run after_refusal: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run fixed_date: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run saved: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+  target: target; automatic
+    reset ["sh","/u01/target/bin/reset.sh","target"] (within 60000ms)
+    serve ["/workspace/dst/target/release/summit-orders"] at http://127.0.0.1:${port.http} (ready /health within 60000ms; env DATABASE_URL env("DATABASE_URL"), PORT "${port.http}")
+      cwd .
+    run entered: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run criteria: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run queried: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run invalid: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run refused: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run tabbed: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run repaired: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run left: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run credit: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run acknowledged: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run bad_date: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run date_refused: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run after_refusal: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run fixed_date: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run saved: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+  example default: {}
+  when entered = enter_query({})
+  when criteria = type({"item":"order-id","value":103})
+  when queried = execute_query({})
+  when invalid = type({"item":"customer-id","value":999999})
+  when refused = click({"item":"date-shipped"})
+  when tabbed = next_item({})
+  when repaired = type({"item":"customer-id","value":202})
+  when left = click({"item":"date-shipped"})
+  when credit = set_payment_type({"payment_type":"CREDIT"})
+  when acknowledged = answer({"button":"OK"})
+  when bad_date = type({"item":"date-shipped","value":"1990-01-01"})
+  when date_refused = save({})
+  when after_refusal = click({"item":"customer-id"})
+  when fixed_date = type({"item":"date-shipped","value":"1992-10-01"})
+  when saved = save({})
+  assert steps.refused.messages == ["Invalid Customer Id!"]
+  assert steps.refused.focus.item == "customer-id"
+  assert steps.tabbed.messages == ["Function Not Allowed"]
+  assert steps.credit.alert.text == "This customer must pay cash!"
+  assert steps.acknowledged.order["payment-type"] == "CASH"
+  assert steps.date_refused.messages == ["Ship date is before order date!"]
+  assert result.order["date-shipped"] == "1992-10-01"
+
+orders-end-to-end.create-multiline (specs/orders-end-to-end.md:75)
+  view changes: command sh (+2 args)
+  audit: required (strict=false; quiet 100ms; 4 default exclusions; 14 authored exclusions; 1 forbids; 0 target requirements)
+    default runtime_support_file_reads because runtime support files are outside migrated behavior
+    default temporary_filesystem_activity because temporary filesystem activity is outside migrated behavior
+    default created_state_steps because steps on state the subject created are compared by its settled state
+    default language_runner_mechanics because language runner mechanics are outside migrated behavior
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/")) because language runtimes read kernel state at start-up (heap sizing, CPU and cgroup limits); the program's own inputs and outputs stay compared
+    exclude both where audit.surface == "filesystem_read" && audit.resource in ["/etc/localtime", "/etc/nsswitch.conf", "/etc/ld.so.cache", "/etc/gai.conf", "/etc/host.conf"] because runtime start-up configuration reads differ between language runtimes
+    exclude both where audit.surface == "filesystem_read" && (audit.resource in ["/etc/passwd", "/etc/group", "/etc/mime.types"] || audit.resource.startsWith("/usr/local/go/") || audit.resource.startsWith("/go/pkg/mod/golang.org/toolchain") || audit.resource.startsWith("/usr/share/zoneinfo/")) because standard libraries read the user database, MIME table, time zone data and toolchain files on their own; the program's own inputs and outputs stay compared
+    exclude both views.process where view.resource == "subject" && has(view.request.operation) && view.request.operation == "signal" && has(view.request.signal) && view.request.signal == 23 because SIGURG is the Go scheduler preempting its own threads; its count varies per run. Exit status, streams and other signals stay compared
+    exclude both views.filesystem where view.phase == "when" && has(view.request.operation) && view.request.operation == "mkdir" because concurrent code races to create the same directory, so mkdir attempts vary per run; the settled directory tree and every file in it stay compared
+    exclude both views.process_io where view.request.participants.all(participant, participant.actor == "subject" || participant.parent == "subject") because pipe chunking and non-blocking reads between the program and its own child processes are runtime I/O scheduling; the child's command line and the program's stdout, stderr and files stay compared
+    exclude both views.http1 where view.resource == "127.0.0.1:7001" because Oracle Forms: client-server messages carry per-session identifiers; what the form shows is compared through the driver and the committed rows through the changes view
+    exclude both views.local_ipc where view.resource == "unix+stream://@/tmp/.X11-unix/X99" because Oracle Forms: X11 drawing on the virtual display varies by window ids and repaints
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/usr/") || audit.resource.startsWith("/etc/") || audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/") || audit.resource.startsWith("/opt/") || audit.resource.startsWith("/u01/") || audit.resource.startsWith("/root/") || audit.resource.startsWith("/lib")) because Oracle Forms: runtimes, libraries, fonts and configuration of the Forms client, the browser driver and the port
+    exclude both views.local_ipc where view.resource.endsWith("/tmp/forms-screen.sock") because Oracle Forms: the Forms driver's screen probe for dialogs and windows
+    exclude both views.process because Oracle Forms: the UI instruments (Forms client, browser driver) start different programs by design
+    exclude both views.process_io because Oracle Forms: pipes between the UI instruments and their helpers differ by design
+    exclude both views.http1 where view.resource == "127.0.0.1:9333" because Oracle Forms: the browser driver's connection to the browser server
+    exclude target views.postgres because Oracle Forms: the engines differ; committed rows are compared through the changes view
+    forbid target views.process where view.resource.startsWith("/workspace/src/") || view.process.startsWith("/workspace/src/") because the target must never execute the source implementation
+  legacy: legacy; automatic
+    reset ["sh","${project}/bin/reset.sh","legacy"] (within 60000ms)
+    run entered: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run criteria: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run queried: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run created: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run customer: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run validated: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run ordered: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run shipped_date: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run payment: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run filled: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run product_one: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run quantity_one: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run shipped_one: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run total_one: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run product_two: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run quantity_two: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run shipped_two: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run saved: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+  target: target; automatic
+    reset ["sh","/u01/target/bin/reset.sh","target"] (within 60000ms)
+    serve ["/workspace/dst/target/release/summit-orders"] at http://127.0.0.1:${port.http} (ready /health within 60000ms; env DATABASE_URL env("DATABASE_URL"), PORT "${port.http}")
+      cwd .
+    run entered: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run criteria: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run queried: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run created: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run customer: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run validated: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run ordered: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run shipped_date: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run payment: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run filled: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run product_one: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run quantity_one: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run shipped_one: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run total_one: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run product_two: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run quantity_two: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run shipped_two: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run saved: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+  example default: {}
+  when entered = enter_query({})
+  when criteria = type({"item":"order-id","value":104})
+  when queried = execute_query({})
+  when created = new_order({})
+  when customer = type({"item":"customer-id","value":201})
+  when validated = click({"item":"date-ordered"})
+  when ordered = type({"item":"date-ordered","value":"2026-01-01"})
+  when shipped_date = type({"item":"date-shipped","value":"2026-01-08"})
+  when payment = set_payment_type({"payment_type":"CREDIT"})
+  when filled = toggle({"item":"order-filled"})
+  when product_one = pick_product({"line":1,"product_id":30421})
+  when quantity_one = type({"item":"quantity","line":1,"value":3})
+  when shipped_one = type({"item":"shipped","line":1,"value":2})
+  when total_one = click({"item":"price","line":1})
+  when product_two = pick_product({"line":2,"product_id":40422})
+  when quantity_two = type({"item":"quantity","line":2,"value":4})
+  when shipped_two = type({"item":"shipped","line":2,"value":3})
+  when saved = save({})
+  assert steps.created.order["date-ordered"] == "today"
+  assert steps.total_one.total == "32.00"
+  assert result.order["order-id"] == 50000
+  assert result.lines[1]["item-id"] == 2
+  assert result.total == "182.00"
+  assert result.messages == ["FRM-40400: Transaction complete: 3 records applied and saved."]
+
+orders-end-to-end.dirty-clear-cancel-exit (specs/orders-end-to-end.md:106)
+  view changes: command sh (+2 args)
+  audit: required (strict=false; quiet 100ms; 4 default exclusions; 14 authored exclusions; 1 forbids; 0 target requirements)
+    default runtime_support_file_reads because runtime support files are outside migrated behavior
+    default temporary_filesystem_activity because temporary filesystem activity is outside migrated behavior
+    default created_state_steps because steps on state the subject created are compared by its settled state
+    default language_runner_mechanics because language runner mechanics are outside migrated behavior
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/")) because language runtimes read kernel state at start-up (heap sizing, CPU and cgroup limits); the program's own inputs and outputs stay compared
+    exclude both where audit.surface == "filesystem_read" && audit.resource in ["/etc/localtime", "/etc/nsswitch.conf", "/etc/ld.so.cache", "/etc/gai.conf", "/etc/host.conf"] because runtime start-up configuration reads differ between language runtimes
+    exclude both where audit.surface == "filesystem_read" && (audit.resource in ["/etc/passwd", "/etc/group", "/etc/mime.types"] || audit.resource.startsWith("/usr/local/go/") || audit.resource.startsWith("/go/pkg/mod/golang.org/toolchain") || audit.resource.startsWith("/usr/share/zoneinfo/")) because standard libraries read the user database, MIME table, time zone data and toolchain files on their own; the program's own inputs and outputs stay compared
+    exclude both views.process where view.resource == "subject" && has(view.request.operation) && view.request.operation == "signal" && has(view.request.signal) && view.request.signal == 23 because SIGURG is the Go scheduler preempting its own threads; its count varies per run. Exit status, streams and other signals stay compared
+    exclude both views.filesystem where view.phase == "when" && has(view.request.operation) && view.request.operation == "mkdir" because concurrent code races to create the same directory, so mkdir attempts vary per run; the settled directory tree and every file in it stay compared
+    exclude both views.process_io where view.request.participants.all(participant, participant.actor == "subject" || participant.parent == "subject") because pipe chunking and non-blocking reads between the program and its own child processes are runtime I/O scheduling; the child's command line and the program's stdout, stderr and files stay compared
+    exclude both views.http1 where view.resource == "127.0.0.1:7001" because Oracle Forms: client-server messages carry per-session identifiers; what the form shows is compared through the driver and the committed rows through the changes view
+    exclude both views.local_ipc where view.resource == "unix+stream://@/tmp/.X11-unix/X99" because Oracle Forms: X11 drawing on the virtual display varies by window ids and repaints
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/usr/") || audit.resource.startsWith("/etc/") || audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/") || audit.resource.startsWith("/opt/") || audit.resource.startsWith("/u01/") || audit.resource.startsWith("/root/") || audit.resource.startsWith("/lib")) because Oracle Forms: runtimes, libraries, fonts and configuration of the Forms client, the browser driver and the port
+    exclude both views.local_ipc where view.resource.endsWith("/tmp/forms-screen.sock") because Oracle Forms: the Forms driver's screen probe for dialogs and windows
+    exclude both views.process because Oracle Forms: the UI instruments (Forms client, browser driver) start different programs by design
+    exclude both views.process_io because Oracle Forms: pipes between the UI instruments and their helpers differ by design
+    exclude both views.http1 where view.resource == "127.0.0.1:9333" because Oracle Forms: the browser driver's connection to the browser server
+    exclude target views.postgres because Oracle Forms: the engines differ; committed rows are compared through the changes view
+    forbid target views.process where view.resource.startsWith("/workspace/src/") || view.process.startsWith("/workspace/src/") because the target must never execute the source implementation
+  legacy: legacy; automatic
+    reset ["sh","${project}/bin/reset.sh","legacy"] (within 60000ms)
+    run entered: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run criteria: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run queried: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run changed: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run validated: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run clear_prompt: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run retained: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run filled: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run cancel_refused: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run after_refusal: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run clear_again: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run discarded: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run exit_prompt: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run declined: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run after_decline: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run exit_again: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run closed: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+  target: target; automatic
+    reset ["sh","/u01/target/bin/reset.sh","target"] (within 60000ms)
+    serve ["/workspace/dst/target/release/summit-orders"] at http://127.0.0.1:${port.http} (ready /health within 60000ms; env DATABASE_URL env("DATABASE_URL"), PORT "${port.http}")
+      cwd .
+    run entered: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run criteria: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run queried: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run changed: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run validated: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run clear_prompt: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run retained: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run filled: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run cancel_refused: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run after_refusal: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run clear_again: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run discarded: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run exit_prompt: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run declined: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run after_decline: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run exit_again: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run closed: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+  example default: {}
+  when entered = enter_query({})
+  when criteria = type({"item":"order-id","value":105})
+  when queried = execute_query({})
+  when changed = type({"item":"customer-id","value":201})
+  when validated = click({"item":"date-shipped"})
+  when clear_prompt = clear({})
+  when retained = answer({"button":"Cancel"})
+  when filled = toggle({"item":"order-filled"})
+  when cancel_refused = cancel({})
+  when after_refusal = click({"item":"customer-id"})
+  when clear_again = clear({})
+  when discarded = answer({"button":"No"})
+  when exit_prompt = exit({})
+  when declined = answer({"button":"No"})
+  when after_decline = click({"item":"order-id"})
+  when exit_again = exit({})
+  when closed = answer({"button":"Yes"})
+  assert steps.clear_prompt.alert.buttons == ["Yes", "No", "Cancel"]
+  assert steps.retained.order["customer-id"] == 201
+  assert steps.cancel_refused.messages == ["Function Not Allowed"]
+  assert steps.discarded.order == {"date-ordered": "today", "order-filled": "N", "payment-type": "CASH"}
+  assert steps.exit_prompt.alert.text == "Do you really want to leave the form?"
+  assert result.closed == true
+
+orders-end-to-end.duplicate-delete-master (specs/orders-end-to-end.md:136)
+  view changes: command sh (+2 args)
+  audit: required (strict=false; quiet 100ms; 4 default exclusions; 14 authored exclusions; 1 forbids; 0 target requirements)
+    default runtime_support_file_reads because runtime support files are outside migrated behavior
+    default temporary_filesystem_activity because temporary filesystem activity is outside migrated behavior
+    default created_state_steps because steps on state the subject created are compared by its settled state
+    default language_runner_mechanics because language runner mechanics are outside migrated behavior
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/")) because language runtimes read kernel state at start-up (heap sizing, CPU and cgroup limits); the program's own inputs and outputs stay compared
+    exclude both where audit.surface == "filesystem_read" && audit.resource in ["/etc/localtime", "/etc/nsswitch.conf", "/etc/ld.so.cache", "/etc/gai.conf", "/etc/host.conf"] because runtime start-up configuration reads differ between language runtimes
+    exclude both where audit.surface == "filesystem_read" && (audit.resource in ["/etc/passwd", "/etc/group", "/etc/mime.types"] || audit.resource.startsWith("/usr/local/go/") || audit.resource.startsWith("/go/pkg/mod/golang.org/toolchain") || audit.resource.startsWith("/usr/share/zoneinfo/")) because standard libraries read the user database, MIME table, time zone data and toolchain files on their own; the program's own inputs and outputs stay compared
+    exclude both views.process where view.resource == "subject" && has(view.request.operation) && view.request.operation == "signal" && has(view.request.signal) && view.request.signal == 23 because SIGURG is the Go scheduler preempting its own threads; its count varies per run. Exit status, streams and other signals stay compared
+    exclude both views.filesystem where view.phase == "when" && has(view.request.operation) && view.request.operation == "mkdir" because concurrent code races to create the same directory, so mkdir attempts vary per run; the settled directory tree and every file in it stay compared
+    exclude both views.process_io where view.request.participants.all(participant, participant.actor == "subject" || participant.parent == "subject") because pipe chunking and non-blocking reads between the program and its own child processes are runtime I/O scheduling; the child's command line and the program's stdout, stderr and files stay compared
+    exclude both views.http1 where view.resource == "127.0.0.1:7001" because Oracle Forms: client-server messages carry per-session identifiers; what the form shows is compared through the driver and the committed rows through the changes view
+    exclude both views.local_ipc where view.resource == "unix+stream://@/tmp/.X11-unix/X99" because Oracle Forms: X11 drawing on the virtual display varies by window ids and repaints
+    exclude both where audit.surface == "filesystem_read" && (audit.resource.startsWith("/usr/") || audit.resource.startsWith("/etc/") || audit.resource.startsWith("/proc/") || audit.resource.startsWith("/sys/") || audit.resource.startsWith("/opt/") || audit.resource.startsWith("/u01/") || audit.resource.startsWith("/root/") || audit.resource.startsWith("/lib")) because Oracle Forms: runtimes, libraries, fonts and configuration of the Forms client, the browser driver and the port
+    exclude both views.local_ipc where view.resource.endsWith("/tmp/forms-screen.sock") because Oracle Forms: the Forms driver's screen probe for dialogs and windows
+    exclude both views.process because Oracle Forms: the UI instruments (Forms client, browser driver) start different programs by design
+    exclude both views.process_io because Oracle Forms: pipes between the UI instruments and their helpers differ by design
+    exclude both views.http1 where view.resource == "127.0.0.1:9333" because Oracle Forms: the browser driver's connection to the browser server
+    exclude target views.postgres because Oracle Forms: the engines differ; committed rows are compared through the changes view
+    forbid target views.process where view.resource.startsWith("/workspace/src/") || view.process.startsWith("/workspace/src/") because the target must never execute the source implementation
+  legacy: legacy; automatic
+    reset ["sh","${project}/bin/reset.sh","legacy"] (within 60000ms)
+    run entered: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run criteria: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run queried: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run duplicated: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run saved: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run delete_prompt: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run declined: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run after_decline: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run delete_again: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run accepted: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+    run deleted: driver ["sh","bin/driver.sh","legacy"] (within 300000ms)
+  target: target; automatic
+    reset ["sh","/u01/target/bin/reset.sh","target"] (within 60000ms)
+    serve ["/workspace/dst/target/release/summit-orders"] at http://127.0.0.1:${port.http} (ready /health within 60000ms; env DATABASE_URL env("DATABASE_URL"), PORT "${port.http}")
+      cwd .
+    run entered: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run criteria: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run queried: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run duplicated: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run saved: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run delete_prompt: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run declined: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run after_decline: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run delete_again: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run accepted: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+    run deleted: driver ["sh","bin/web-driver.sh","target"] (within 300000ms)
+  example default: {}
+  when entered = enter_query({})
+  when criteria = type({"item":"order-id","value":106})
+  when queried = execute_query({})
+  when duplicated = duplicate_order({})
+  when saved = save({})
+  when delete_prompt = delete_order({})
+  when declined = answer({"button":"No"})
+  when after_decline = click({"item":"customer-id"})
+  when delete_again = delete_order({})
+  when accepted = answer({"button":"Yes"})
+  when deleted = save({})
+  assert steps.duplicated.lines == []
+  assert !("order-id" in steps.duplicated.order)
+  assert steps.saved.order["order-id"] == 50000
+  assert steps.declined.order["order-id"] == 50000
+  assert result.order["order-id"] == 106
+  assert result.messages == ["FRM-40400: Transaction complete: 1 records applied and saved."]
